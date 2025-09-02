@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+*.env
+
+# Node.js
+client/node_modules/
+client/.next/
+client/out/
+
+# Data and database
+data/raw/*
+data/processed/*
+server/tenders.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.cache
+
+# System files
+.DS_Store
+Thumbs.db
