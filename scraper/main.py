@@ -343,9 +343,9 @@ async def update_csv_schema(csv_file, log_file):
 async def main():
     global duplicate_count
     base_url = BASE_URL
-    csv_file = "tenders.csv"
-    db_file = "tenders.db"
-    log_file = "scrape_errors.log"
+    csv_file = "../data/raw/tenders.csv"
+    db_file = "../data/raw/tenders.db"
+    log_file = "../data/raw/scrape_errors.log"
     concurrent_pages = 4
     pages_per_session = 10000
     max_pages = 35000
