@@ -55,8 +55,8 @@ def clean_tenders_csv(input_file: str, output_file: str, chunksize: int = 50000)
     first_amharic = True
     first_english = True
 
-    amharic_file = "tenders_amharic.csv"
-    english_file = "tenders_english.csv"
+    amharic_file = "../data/processed/tenders_amharic.csv"
+    english_file = "../data/processed/tenders_english.csv"
 
     for chunk in pd.read_csv(input_file, chunksize=chunksize, on_bad_lines="skip"):
         # Detect language
@@ -89,6 +89,6 @@ def clean_tenders_csv(input_file: str, output_file: str, chunksize: int = 50000)
 
 
 if __name__ == "__main__":
-    input_csv = "tenders.csv"          # raw file
-    output_csv = "tenders_clean.csv"   # cleaned output
+    input_csv = "../data/raw/tenders.csv"          # raw file
+    output_csv = "../data/processed/tenders_clean.csv"   # cleaned output
     clean_tenders_csv(input_csv, output_csv, chunksize=50000)  # smaller chunks for memory efficiency
