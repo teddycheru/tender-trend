@@ -89,6 +89,6 @@ def clean_tenders_csv(input_file: str, output_file: str, chunksize: int = 50000)
 
 
 if __name__ == "__main__":
-    input_csv = "../data/raw/tenders.csv"          # raw file
-    output_csv = "../data/processed/tenders_clean.csv"   # cleaned output
+    input_csv = "../data/raw/tenders_2merkato.csv"          # raw file
+    output_csv = "../data/processed/tenders_clean_2merkato.csv"   # cleaned output
     clean_tenders_csv(input_csv, output_csv, chunksize=50000)  # smaller chunks for memory efficiency
