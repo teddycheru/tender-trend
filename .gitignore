@@ -1,27 +1,96 @@
+# ----------------------------
 # Python
+# ----------------------------
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.so
 .Python
 venv/
+env/
+server/venv/
 *.env
+*.egg-info/
+.eggs/
 
-# Node.js
+# ----------------------------
+# Jupyter notebooks
+# ----------------------------
+*.ipynb
+.ipynb_checkpoints/
+*.ipynb_convert/
+
+# ----------------------------
+# Node.js / Next.js
+# ----------------------------
 client/node_modules/
 client/.next/
 client/out/
+client/.vercel/
+client/.turbo/
 
+# Config & lock files (ignore if not needed in git)
+client/package-lock.json
+client/yarn.lock
+client/pnpm-lock.yaml
+client/.eslintrc*
+client/eslint.config.mjs
+client/next.config.mjs
+client/postcss.config.js
+client/postcss.config.mjs
+client/jsconfig.json
+client/.env*
+
+# Public + styles (but keep translations)
+client/public/*
+!client/public/locales/
+client/styles/*
+client/.gitignore
+
+# Ignore generated tender pages
+client/pages/tenders/
+
+# ----------------------------
 # Data and database
-data/raw/*
-data/processed/*
+# ----------------------------
+data/raw/*.csv
+data/processed/*.csv
+server/tenders*.csv
 server/tenders.db
+server/data/
 
+# Allow metadata docs
+!data/README.md
+!data/raw/README.md
+!data/processed/README.md
+
+# ----------------------------
+# Server-specific
+# ----------------------------
+server/__pycache__/
+server/*.log
+server/*.tmp
+
+# ----------------------------
 # Logs and temp files
+# ----------------------------
 *.log
 *.tmp
 *.cache
+*.bak
+*.swp
+*.swo
 
+# ----------------------------
+# IDE / Editor configs
+# ----------------------------
+.vscode/
+.idea/
+*.iml
+
+# ----------------------------
 # System files
+# ----------------------------
 .DS_Store
 Thumbs.db
