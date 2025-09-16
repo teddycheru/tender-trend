@@ -5,78 +5,90 @@ from bs4 import BeautifulSoup
 from unidecode import unidecode
 from tqdm import tqdm
 
-tqdm.pandas()  # Progress bar for pandas apply
+tqdm.pandas()
 
 # ---------------------------
 # Utility functions
 # ---------------------------
 
 def clean_html(text: str) -> str:
-    """Remove HTML tags and decode entities."""
     if pd.isna(text):
         return ""
     try:
-        # Try lxml if available
         text = BeautifulSoup(text, "lxml").get_text(separator=" ")
     except Exception:
-        # Fallback to built-in parser
         text = BeautifulSoup(text, "html.parser").get_text(separator=" ")
-    text = html.unescape(text)
-    return text
+    return html.unescape(text)
 
 def normalize_text(text: str) -> str:
-    """General text normalization."""
     if pd.isna(text):
         return ""
-    
-    # Convert to lowercase
     text = text.lower()
-    
-    # Remove URLs
     text = re.sub(r"http\S+|www\S+|https\S+", " ", text)
-    
-    # Remove non-ascii (accents → plain letters)
     text = unidecode(text)
-    
-    # Remove special characters except basic punctuation
     text = re.sub(r"[^a-z0-9\s\.,;:!?\-]", " ", text)
-    
-    # Collapse multiple spaces
     text = re.sub(r"\s+", " ", text)
-    
     return text.strip()
 
+def detect_language(text: str) -> str:
+    if pd.isna(text) or not text.strip():
+        return "unknown"
+    if re.search(r"[\u1200-\u137F]", text):
+        return "amharic"
+    return "english"
+
 def clean_text_pipeline(text: str) -> str:
-    """Full cleaning pipeline for title/description."""
     text = clean_html(text)
-    text = normalize_text(text)
+    lang = detect_language(text)
+    if lang == "english":
+        text = normalize_text(text)
     return text
 
 # ---------------------------
 # Main cleaning script
 # ---------------------------
 
-def clean_tenders_csv(input_file: str, output_file: str):
-    print(f"Loading {input_file}...")
-    df = pd.read_csv(input_file)
+def clean_tenders_csv(input_file: str, output_file: str, chunksize: int = 50000):
+    print(f"Processing {input_file} in chunks of {chunksize} rows...")
 
-    # Columns to clean
-    text_columns = ["Title", "Description"]
+    first_chunk = True
+    first_amharic = True
+    first_english = True
 
-    for col in text_columns:
-        print(f"Cleaning column: {col}")
-        df[f"{col}_clean"] = df[col].progress_apply(clean_text_pipeline)
+    amharic_file = "../data/processed/tenders_amharic.csv"
+    english_file = "../data/processed/tenders_english.csv"
 
-    # Optional: fill missing with empty string for other text fields
-    df.fillna("", inplace=True)
+    for chunk in pd.read_csv(input_file, chunksize=chunksize, on_bad_lines="skip"):
+        # Detect language
+        chunk["Language"] = chunk["Title"].astype(str).apply(detect_language)
 
-    print(f"Saving cleaned file to {output_file}")
-    df.to_csv(output_file, index=False)
+        # Clean columns
+        for col in ["Title", "Description"]:
+            chunk[f"{col}_clean"] = chunk[col].astype(str).progress_apply(clean_text_pipeline)
 
-    return df
+        # Write main cleaned CSV
+        chunk.to_csv(output_file, mode="a", index=False, header=first_chunk)
+        first_chunk = False
+
+        # Filter and write Amharic tenders
+        amharic_chunk = chunk[chunk["Language"] == "amharic"]
+        if not amharic_chunk.empty:
+            amharic_chunk.to_csv(amharic_file, mode="a", index=False, header=first_amharic)
+            first_amharic = False
+
+        # Filter and write English tenders
+        english_chunk = chunk[chunk["Language"] == "english"]
+        if not english_chunk.empty:
+            english_chunk.to_csv(english_file, mode="a", index=False, header=first_english)
+            first_english = False
+
+    print(f"✅ Cleaning completed.")
+    print(f"Saved full cleaned CSV to: {output_file}")
+    print(f"Saved Amharic tenders to: {amharic_file}")
+    print(f"Saved English tenders to: {english_file}")
+
 
 if __name__ == "__main__":
-    input_csv = "../data/raw/tenders.csv"
-    output_csv = "../data/processed/tenders_clean.csv"
-    df_clean = clean_tenders_csv(input_csv, output_csv)
-    print("Cleaning completed ✅")
+    input_csv = "../data/raw/tenders_2merkato.csv"          # raw file
+    output_csv = "../data/processed/tenders_clean_2merkato.csv"   # cleaned output
+    clean_tenders_csv(input_csv, output_csv, chunksize=50000)  # smaller chunks for memory efficiency
