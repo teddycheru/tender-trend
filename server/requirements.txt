@@ -3,6 +3,6 @@ uvicorn==0.30.6
 python-dotenv==1.0.1
 pandas
 databases[sqlite]==0.9.0
-numpy==1.26.4
+numpy==2.1.1
 scikit-learn==1.5.1
 regex==2024.7.24
