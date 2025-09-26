@@ -1,9 +1,9 @@
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import sqlite3
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+import sqlite3
 import os
 
 logging.basicConfig(
@@ -16,11 +16,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title="TenderTrend API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # Update to Vercel URL after deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,16 +40,20 @@ class Tender(BaseModel):
     created_at: str
     source: str
 
+@app.get("/")
+async def root():
+    return {"message": "Welcome to TenderTrend API. Try /tenders for data."}
+
 @app.get("/tenders")
 async def get_tenders(
-    region: str = None,
-    sector: str = None,
-    keyword: str = None,
-    status: str = None,
-    issueDateStart: str = None,
-    issueDateEnd: str = None,
-    deadlineStart: str = None,
-    deadlineEnd: str = None,
+    region: Optional[str] = None,
+    sector: Optional[str] = None,
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    issueDateStart: Optional[str] = None,
+    issueDateEnd: Optional[str] = None,
+    deadlineStart: Optional[str] = None,
+    deadlineEnd: Optional[str] = None,
     sortBy: str = "Published_On",
     sortOrder: str = "desc",
     page: int = 1,
@@ -57,7 +61,7 @@ async def get_tenders(
 ):
     logger.debug(f"Request for /tenders with params: region={region}, sector={sector}, keyword={keyword}, status={status}, sortBy={sortBy}, sortOrder={sortOrder}, page={page}, per_page={per_page}")
     try:
-        db_path = os.path.abspath('tenders.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'data/processed/tenders.db')
         logger.debug(f"Connecting to database at: {db_path}")
         if not os.path.exists(db_path):
             logger.error(f"Database file {db_path} not found")
@@ -70,7 +74,6 @@ async def get_tenders(
             logger.error("Table 'tenders' not found")
             raise HTTPException(status_code=500, detail="Table 'tenders' not found")
         
-        # Build query for counting total
         count_query = "SELECT COUNT(*) FROM tenders WHERE 1=1"
         count_params = []
         if region:
@@ -101,7 +104,6 @@ async def get_tenders(
         cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
 
-        # Build query for paginated results
         query = "SELECT * FROM tenders WHERE 1=1"
         params = []
         if region:
@@ -164,7 +166,7 @@ async def get_tenders(
 async def get_regions():
     logger.debug("Request for /trends/regions")
     try:
-        db_path = os.path.abspath('tenders.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'data/processed/tenders.db')
         logger.debug(f"Connecting to database at: {db_path}")
         if not os.path.exists(db_path):
             logger.error(f"Database file {db_path} not found")
@@ -188,7 +190,7 @@ async def get_regions():
 async def get_sectors():
     logger.debug("Request for /trends/sectors")
     try:
-        db_path = os.path.abspath('tenders.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'data/processed/tenders.db')
         logger.debug(f"Connecting to database at: {db_path}")
         if not os.path.exists(db_path):
             logger.error(f"Database file {db_path} not found")
@@ -196,11 +198,6 @@ async def get_sectors():
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(tenders)")
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'Sector' not in columns:
-            logger.error("No Sector column found in tenders table")
-            raise HTTPException(status_code=500, detail="No Sector column found")
         cursor.execute("SELECT DISTINCT Sector FROM tenders WHERE Sector IS NOT NULL")
         sectors = [row["Sector"] for row in cursor.fetchall()]
         conn.close()
