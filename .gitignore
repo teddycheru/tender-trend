@@ -58,7 +58,7 @@ data/raw/*.csv
 data/processed/*.csv
 server/tenders*.csv
 server/tenders.db
-server/data/
+# server/data/
 
 # Allow metadata docs
 !data/README.md
