@@ -1,11 +1,12 @@
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import sqlite3
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import os
+from databases import Database
 
+# Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -16,202 +17,162 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
-
+app = FastAPI(title="TenderTrend API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # Update to Vercel URL after deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/processed/tenders.db")
+database = Database(DATABASE_URL)
+
 class Tender(BaseModel):
     id: int
     Title: str
+    Description: str
+    Category_Label: str
     URL: str
     Closing_Date: str
     Published_On: str
     Region: str
-    Sector: str
-    status: str
-    description: str
-    tor_url: str
-    created_at: str
-    source: str
+    Bidding_Status: str
+    TOR_Download_Link: str
+    Scrape_Timestamp: str
+    Issuer: Optional[str] = None
 
-@app.get("/tenders")
+@app.on_event("startup")
+async def startup():
+    try:
+        await database.connect()
+        logger.info("Database connected successfully")
+    except Exception as e:
+        logger.error(f"Database connection failed: {str(e)}")
+        raise
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to TenderTrend API. Try /tenders for data."}
+
+@app.get("/tenders", response_model=List[Tender])
 async def get_tenders(
-    region: str = None,
-    sector: str = None,
-    keyword: str = None,
-    status: str = None,
-    issueDateStart: str = None,
-    issueDateEnd: str = None,
-    deadlineStart: str = None,
-    deadlineEnd: str = None,
+    region: Optional[str] = None,
+    category: Optional[str] = None,
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    issueDateStart: Optional[str] = None,
+    issueDateEnd: Optional[str] = None,
+    deadlineStart: Optional[str] = None,
+    deadlineEnd: Optional[str] = None,
     sortBy: str = "Published_On",
     sortOrder: str = "desc",
     page: int = 1,
     per_page: int = 20
 ):
-    logger.debug(f"Request for /tenders with params: region={region}, sector={sector}, keyword={keyword}, status={status}, sortBy={sortBy}, sortOrder={sortOrder}, page={page}, per_page={per_page}")
+    logger.debug(f"Request for /tenders with params: region={region}, category={category}, keyword={keyword}, status={status}, sortBy={sortBy}, sortOrder={sortOrder}, page={page}, per_page={per_page}")
     try:
-        db_path = os.path.abspath('tenders.db')
-        logger.debug(f"Connecting to database at: {db_path}")
-        if not os.path.exists(db_path):
-            logger.error(f"Database file {db_path} not found")
-            raise HTTPException(status_code=500, detail="Database file not found")
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tenders'")
-        if not cursor.fetchone():
-            logger.error("Table 'tenders' not found")
-            raise HTTPException(status_code=500, detail="Table 'tenders' not found")
-        
         # Build query for counting total
         count_query = "SELECT COUNT(*) FROM tenders WHERE 1=1"
-        count_params = []
+        count_params = {}
         if region:
-            count_query += " AND Region = ?"
-            count_params.append(region)
-        if sector:
-            count_query += " AND Sector = ?"
-            count_params.append(sector)
+            count_query += " AND Region = :region"
+            count_params["region"] = region
+        if category:
+            count_query += " AND Category_Label = :category"
+            count_params["category"] = category
         if keyword:
-            count_query += " AND Title LIKE ?"
-            count_params.append(f"%{keyword}%")
+            count_query += " AND Title LIKE :keyword"
+            count_params["keyword"] = f"%{keyword}%"
         if status and status != 'All':
-            count_query += " AND status = ?"
-            count_params.append(status)
+            count_query += " AND Bidding_Status = :status"
+            count_params["status"] = status
         if issueDateStart:
-            count_query += " AND Published_On >= ?"
-            count_params.append(issueDateStart)
+            count_query += " AND Published_On >= :issueDateStart"
+            count_params["issueDateStart"] = issueDateStart
         if issueDateEnd:
-            count_query += " AND Published_On <= ?"
-            count_params.append(issueDateEnd)
+            count_query += " AND Published_On <= :issueDateEnd"
+            count_params["issueDateEnd"] = issueDateEnd
         if deadlineStart:
-            count_query += " AND Closing_Date >= ?"
-            count_params.append(deadlineStart)
+            count_query += " AND Closing_Date >= :deadlineStart"
+            count_params["deadlineStart"] = deadlineStart
         if deadlineEnd:
-            count_query += " AND Closing_Date <= ?"
-            count_params.append(deadlineEnd)
-        
-        cursor.execute(count_query, count_params)
-        total = cursor.fetchone()[0]
+            count_query += " AND Closing_Date <= :deadlineEnd"
+            count_params["deadlineEnd"] = deadlineEnd
+
+        total = await database.fetch_val(count_query, count_params)
 
         # Build query for paginated results
         query = "SELECT * FROM tenders WHERE 1=1"
-        params = []
+        params = {}
         if region:
-            query += " AND Region = ?"
-            params.append(region)
-        if sector:
-            query += " AND Sector = ?"
-            params.append(sector)
+            query += " AND Region = :region"
+            params["region"] = region
+        if category:
+            query += " AND Category_Label = :category"
+            params["category"] = category
         if keyword:
-            query += " AND Title LIKE ?"
-            params.append(f"%{keyword}%")
+            query += " AND Title LIKE :keyword"
+            params["keyword"] = f"%{keyword}%"
         if status and status != 'All':
-            query += " AND status = ?"
-            params.append(status)
+            query += " AND Bidding_Status = :status"
+            params["status"] = status
         if issueDateStart:
-            query += " AND Published_On >= ?"
-            params.append(issueDateStart)
+            query += " AND Published_On >= :issueDateStart"
+            params["issueDateStart"] = issueDateStart
         if issueDateEnd:
-            query += " AND Published_On <= ?"
-            params.append(issueDateEnd)
+            query += " AND Published_On <= :issueDateEnd"
+            params["issueDateEnd"] = issueDateEnd
         if deadlineStart:
-            query += " AND Closing_Date >= ?"
-            params.append(deadlineStart)
+            query += " AND Closing_Date >= :deadlineStart"
+            params["deadlineStart"] = deadlineStart
         if deadlineEnd:
-            query += " AND Closing_Date <= ?"
-            params.append(deadlineEnd)
+            query += " AND Closing_Date <= :deadlineEnd"
+            params["deadlineEnd"] = deadlineEnd
         if sortBy in ['Published_On', 'Closing_Date', 'Title']:
             query += f" ORDER BY {sortBy} {sortOrder.upper()}"
         else:
             query += " ORDER BY Published_On DESC"
-        query += " LIMIT ? OFFSET ?"
-        params.extend([per_page, (page - 1) * per_page])
+        query += " LIMIT :per_page OFFSET :offset"
+        params["per_page"] = per_page
+        params["offset"] = (page - 1) * per_page
 
         logger.debug(f"Executing query: {query} with params: {params}")
-        cursor.execute(query, params)
-        tenders = cursor.fetchall()
-        result = [
-            {
-                "id": t["id"], "Title": t["Title"], "URL": t["URL"], "Closing_Date": t["Closing_Date"],
-                "Published_On": t["Published_On"], "Region": t["Region"], "status": t["status"],
-                "description": t["description"], "tor_url": t["tor_url"], "created_at": t["created_at"],
-                "source": t["source"], "Sector": t["Sector"]
-            } for t in tenders
-        ]
+        tenders = await database.fetch_all(query, params)
         logger.info(f"Fetched {len(tenders)} tenders, total: {total}")
-        conn.close()
-        return {"tenders": result, "total": total}
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        return {"tenders": tenders, "total": total}
     except Exception as e:
-        logger.error(f"Unexpected error in /tenders: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
-    finally:
-        if 'conn' in locals():
-            conn.close()
-            logger.debug("Database connection closed")
+        logger.error(f"Database query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/trends/regions")
 async def get_regions():
     logger.debug("Request for /trends/regions")
     try:
-        db_path = os.path.abspath('tenders.db')
-        logger.debug(f"Connecting to database at: {db_path}")
-        if not os.path.exists(db_path):
-            logger.error(f"Database file {db_path} not found")
-            raise HTTPException(status_code=500, detail="Database file not found")
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT Region FROM tenders WHERE Region IS NOT NULL")
-        regions = [row["Region"] for row in cursor.fetchall()]
-        conn.close()
+        query = "SELECT DISTINCT Region FROM tenders WHERE Region IS NOT NULL"
+        regions = await database.fetch_all(query)
         logger.info(f"Fetched {len(regions)} regions")
-        return regions
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error in /trends/regions: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        return [row["Region"] for row in regions]
     except Exception as e:
-        logger.error(f"Unexpected error in /trends/regions: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.error(f"Database query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/trends/sectors")
 async def get_sectors():
     logger.debug("Request for /trends/sectors")
     try:
-        db_path = os.path.abspath('tenders.db')
-        logger.debug(f"Connecting to database at: {db_path}")
-        if not os.path.exists(db_path):
-            logger.error(f"Database file {db_path} not found")
-            raise HTTPException(status_code=500, detail="Database file not found")
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(tenders)")
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'Sector' not in columns:
-            logger.error("No Sector column found in tenders table")
-            raise HTTPException(status_code=500, detail="No Sector column found")
-        cursor.execute("SELECT DISTINCT Sector FROM tenders WHERE Sector IS NOT NULL")
-        sectors = [row["Sector"] for row in cursor.fetchall()]
-        conn.close()
+        query = "SELECT DISTINCT Category_Label FROM tenders WHERE Category_Label IS NOT NULL"
+        sectors = await database.fetch_all(query)
         logger.info(f"Fetched {len(sectors)} sectors")
-        return sectors
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error in /trends/sectors: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        return [row["Category_Label"] for row in sectors]
     except Exception as e:
-        logger.error(f"Unexpected error in /trends/sectors: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.error(f"Database query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/trends/views")
 async def get_views():
@@ -220,4 +181,4 @@ async def get_views():
         return ['regions', 'sectors', 'months', 'tenders']
     except Exception as e:
         logger.error(f"Unexpected error in /trends/views: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
