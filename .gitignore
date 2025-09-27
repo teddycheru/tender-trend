@@ -45,7 +45,6 @@ client/.env*
 # Public + styles (but keep translations)
 client/public/*
 !client/public/locales/
-client/styles/*
 client/.gitignore
 
 # Ignore generated tender pages
