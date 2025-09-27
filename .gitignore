@@ -31,20 +31,11 @@ client/.vercel/
 client/.turbo/
 
 # Config & lock files (ignore if not needed in git)
-client/package-lock.json
-client/yarn.lock
 client/pnpm-lock.yaml
-client/.eslintrc*
-client/eslint.config.mjs
-client/next.config.mjs
-client/postcss.config.mjs
-client/jsconfig.json
 client/.env*
 
 # Public + styles (but keep translations)
-client/public/*
 !client/public/locales/
-client/.gitignore
 
 # Ignore generated tender pages
 client/pages/tenders/
