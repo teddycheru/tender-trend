@@ -37,7 +37,6 @@ client/pnpm-lock.yaml
 client/.eslintrc*
 client/eslint.config.mjs
 client/next.config.mjs
-client/postcss.config.js
 client/postcss.config.mjs
 client/jsconfig.json
 client/.env*
