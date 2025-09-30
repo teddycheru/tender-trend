@@ -5,6 +5,7 @@ const resources = {
   en: {
     translation: {
       title: 'TenderTrend',
+      title_column: 'Title',
       tenders: 'Tenders',
       select_view: 'Select View',
       regions: 'Regions',
@@ -36,6 +37,7 @@ const resources = {
       sector: 'Sector',
       back_to_home: 'Back to Home',
       close: 'Close',
+      back:'Back',
       previous: 'Previous',
       next: 'Next',
       total_tenders: 'Total Tenders'

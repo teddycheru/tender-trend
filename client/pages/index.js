@@ -1,3 +1,4 @@
+// pages/index.jsx (or wherever your page lives)
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/router";
@@ -19,182 +20,210 @@ export default function Home() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const [selectedView, setSelectedView] = useState("");
+  console.log("Environment:", process.env.NEXT_PUBLIC_API_URL);
+
+  const [selectedView, setSelectedView] = useState("regions");
   const [selectedSectors, setSelectedSectors] = useState([]);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedYears, setSelectedYears] = useState([]);
 
   const [regions, setRegions] = useState([]);
   const [sectors, setSectors] = useState([]);
-  const [tenders, setTenders] = useState([]);
+  const [regionCounts, setRegionCounts] = useState([]); // array of {region, count} or []
+  const [sectorCounts, setSectorCounts] = useState([]); // array of {predicted_category, count} or []
+  const [monthCountsMap, setMonthCountsMap] = useState({}); // { "2024-01": { label: "Jan 2024", count: 12 }, ... }
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [allSectorsOpts, setAllSectorsOpts] = useState([]);
   const [allMonthsOpts, setAllMonthsOpts] = useState([]);
   const [allYearsOpts, setAllYearsOpts] = useState([]);
 
+  // helper
+  const normalize = (s) => (typeof s === "string" ? s.trim().toLowerCase() : "");
+
   useEffect(() => {
     const fetchAll = async () => {
-      const base = process.env.NEXT_PUBLIC_API_URL;
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      console.log("Fetching data from:", base);
+      setLoading(true);
+      setError(null);
 
-      const [regionsRes, sectorsRes, tendersRes] = await Promise.all([
-        fetch(`${base}/trends/regions`),
-        fetch(`${base}/trends/sectors`),
-        fetch(
-          `${base}/tenders?sortBy=Published_On&sortOrder=asc&page=1&per_page=100000`
-        ),
-      ]);
+      try {
+        const endpoints = [
+          `${base}/trends/regions`,
+          `${base}/trends/sectors`,
+          `${base}/trends/regions/counts`,
+          `${base}/trends/sectors/counts`,
+          `${base}/trends/months/counts`,
+        ];
+        console.log("Fetch endpoints:", endpoints);
+        const [regionsRes, sectorsRes, regionCountsRes, sectorCountsRes, monthCountsRes] = await Promise.all(
+          endpoints.map((u) => fetch(u))
+        );
 
-      const [regionsJson, sectorsJson, tendersJson] = await Promise.all([
-        regionsRes.json(),
-        sectorsRes.json(),
-        tendersRes.json(),
-      ]);
+        if (!regionsRes.ok) throw new Error(`Regions fetch failed: ${regionsRes.status} ${regionsRes.statusText}`);
+        if (!sectorsRes.ok) throw new Error(`Sectors fetch failed: ${sectorsRes.status} ${sectorsRes.statusText}`);
+        if (!regionCountsRes.ok) throw new Error(`Region counts fetch failed: ${regionCountsRes.status} ${regionCountsRes.statusText}`);
+        if (!sectorCountsRes.ok) throw new Error(`Sector counts fetch failed: ${sectorCountsRes.status} ${sectorCountsRes.statusText}`);
+        if (!monthCountsRes.ok) throw new Error(`Month counts fetch failed: ${monthCountsRes.status} ${monthCountsRes.statusText}`);
 
-      const rows = Array.isArray(tendersJson?.tenders)
-        ? tendersJson.tenders
-        : [];
+        const [regionsJson, sectorsJson, regionCountsJson, sectorCountsJson, monthCountsJson] = await Promise.all([
+          regionsRes.json(),
+          sectorsRes.json(),
+          regionCountsRes.json(),
+          sectorCountsRes.json(),
+          monthCountsRes.json(),
+        ]);
 
-      setRegions(regionsJson || []);
-      setSectors(sectorsJson || []);
-      setTenders(rows);
+        console.log("Fetched regions (raw):", regionsJson);
+        console.log("Fetched sectors (raw):", sectorsJson);
+        console.log("Fetched region counts (raw):", regionCountsJson);
+        console.log("Fetched sector counts (raw):", sectorCountsJson);
+        console.log("Fetched month counts (raw):", monthCountsJson);
 
-      setAllSectorsOpts((sectorsJson || []).map((s) => ({ value: s, label: s })));
+        // Build normalized maps and safe lists
+        // Regions: prefer aggregated endpoint if it returns objects like {region, count}
+        let derivedRegions = [];
+        if (Array.isArray(regionCountsJson) && regionCountsJson.length && typeof regionCountsJson[0] === "object" && "region" in regionCountsJson[0]) {
+          derivedRegions = regionCountsJson.map((r) => r.region);
+          setRegionCounts(regionCountsJson);
+        } else {
+          // fallback to /trends/regions which may be an array of strings
+          derivedRegions = Array.isArray(regionsJson) ? regionsJson : [];
+          setRegionCounts([]); // no counts available
+        }
 
-      // Build distinct months & years
-      const monthCounts = {};
-      for (const row of rows) {
-        const raw = row?.Published_On;
-        if (!raw) continue;
-        const d = new Date(raw);
-        if (Number.isNaN(d.getTime())) continue;
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-          2,
-          "0"
-        )}`;
-        monthCounts[key] = (monthCounts[key] || 0) + 1;
+        // Sectors: aggregated endpoint returns predicted_category
+        let derivedSectors = [];
+        if (Array.isArray(sectorCountsJson) && sectorCountsJson.length && typeof sectorCountsJson[0] === "object" && ("predicted_category" in sectorCountsJson[0] || "category" in sectorCountsJson[0])) {
+          // normalize to use predicted_category accessor if available
+          setSectorCounts(sectorCountsJson);
+          derivedSectors = sectorCountsJson.map((r) => r.predicted_category ?? r.category);
+        } else {
+          derivedSectors = Array.isArray(sectorsJson) ? sectorsJson : [];
+          setSectorCounts([]);
+        }
+
+        setRegions(derivedRegions);
+        setSectors(derivedSectors);
+        setAllSectorsOpts(derivedSectors.map((s) => ({ value: s, label: s })));
+
+        // Months: backend returns rows { year, month, count }
+        const mMap = {}; // key -> { label, count }
+        if (Array.isArray(monthCountsJson)) {
+          for (const r of monthCountsJson) {
+            // backend may return numbers or strings
+            const year = Number(r.year);
+            const monthNum = Number(r.month); // 1..12
+            if (!Number.isFinite(year) || !Number.isFinite(monthNum)) continue;
+            const key = `${year}-${String(monthNum).padStart(2, "0")}`; // 2024-01
+            const label = new Date(year, monthNum - 1, 1).toLocaleString("default", { month: "short" }) + ` ${year}`;
+            mMap[key] = { label, count: Number(r.count) || 0, year, month: monthNum };
+          }
+        }
+        // sort keys for options
+        const monthKeys = Object.keys(mMap).sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
+        setMonthCountsMap(mMap);
+        setAllMonthsOpts(monthKeys.map((k) => ({ value: k, label: mMap[k].label })));
+        const years = [...new Set(Object.values(mMap).map((v) => v.year))].sort((a, b) => a - b);
+        setAllYearsOpts(years.map((y) => ({ value: y, label: String(y) })));
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError(err.message ?? String(err));
+      } finally {
+        setLoading(false);
       }
-
-      const monthNames = [...new Set(
-        Object.keys(monthCounts).map((k) => {
-          const [y, m] = k.split("-");
-          return new Date(`${y}-${m}-01`).toLocaleString("default", {
-            month: "short",
-          });
-        })
-      )];
-
-      const years = [...new Set(Object.keys(monthCounts).map((k) => k.split("-")[0]))]
-        .sort();
-
-      setAllMonthsOpts(monthNames.map((m) => ({ value: m, label: m })));
-      setAllYearsOpts(years.map((y) => ({ value: y, label: y })));
     };
 
     fetchAll();
   }, []);
 
-  // ---- Chart helpers ----
+  // ---- region chart using regionCounts (aggregated) and regions labels ----
   const regionChart = useMemo(() => {
-    if (!regions.length || !tenders.length) return { labels: [], datasets: [] };
+    console.log("Rendering regionChart, regions:", regions.length, "regionCounts:", (regionCounts || []).length);
+    if (!regions.length) return { labels: [], datasets: [] };
 
-    const counts = regions.reduce((acc, r) => ({ ...acc, [r]: 0 }), {});
-    for (const row of tenders) {
-      const r = row?.Region;
-      if (r && r in counts) counts[r] += 1;
+    // build map normalizedRegion -> count
+    const countsMap = {};
+    if (Array.isArray(regionCounts) && regionCounts.length) {
+      for (const r of regionCounts) {
+        const key = normalize(r.region ?? r.region_name ?? "");
+        countsMap[key] = Number(r.count) || 0;
+      }
     }
 
+    // fallback: if countsMap empty we'll set zeros
+    const labels = regions;
+    const data = labels.map((lab) => countsMap[normalize(lab)] ?? 0);
+
     return {
-      labels: regions,
+      labels,
       datasets: [
         {
           label: t("tenders_by_region"),
-          data: regions.map((r) => counts[r] || 0),
-          backgroundColor: regions.map(
-            (_, i) => `hsl(${(i * 40) % 360}, 70%, 50%)`
-          ),
+          data,
+          backgroundColor: labels.map((_, i) => `hsl(${(i * 40) % 360}, 70%, 50%)`),
           barThickness: 30,
         },
       ],
     };
-  }, [regions, tenders, t]);
+  }, [regions, regionCounts, t]);
 
+  // ---- sector chart using sectorCounts and sectors labels ----
   const sectorChart = useMemo(() => {
-    if (!sectors.length || !tenders.length) return { labels: [], datasets: [] };
+    console.log("Rendering sectorChart, sectors:", sectors.length, "sectorCounts:", (sectorCounts || []).length, "selectedSectors:", selectedSectors.length);
+    if (!sectors.length) return { labels: [], datasets: [] };
 
-    const selected = selectedSectors.length
-      ? selectedSectors.map((o) => o.value)
-      : sectors;
+    const selected = selectedSectors.length ? selectedSectors.map((o) => o.value) : sectors;
 
-    const counts = selected.reduce((acc, s) => ({ ...acc, [s]: 0 }), {});
-    for (const row of tenders) {
-      const s = row?.Sector;
-      if (s && s in counts) counts[s] += 1;
+    const countsMap = {};
+    if (Array.isArray(sectorCounts) && sectorCounts.length) {
+      for (const r of sectorCounts) {
+        const cat = r.predicted_category ?? r.category ?? r.sector ?? null;
+        if (!cat) continue;
+        countsMap[normalize(cat)] = Number(r.count) || 0;
+      }
     }
 
+    const labels = selected;
+    const data = labels.map((lab) => countsMap[normalize(lab)] ?? 0);
+
     return {
-      labels: selected,
+      labels,
       datasets: [
         {
           label: t("tenders_by_sector"),
-          data: selected.map((s) => counts[s] || 0),
-          backgroundColor: selected.map(
-            (_, i) => `hsl(${(i * 60) % 360}, 70%, 50%)`
-          ),
+          data,
+          backgroundColor: labels.map((_, i) => `hsl(${(i * 60) % 360}, 70%, 50%)`),
           barThickness: 30,
         },
       ],
     };
-  }, [sectors, tenders, selectedSectors, t]);
+  }, [sectors, sectorCounts, selectedSectors, t]);
 
-  const monthCountsAll = useMemo(() => {
-    const map = {};
-    for (const row of tenders) {
-      const raw = row?.Published_On;
-      if (!raw) continue;
-      const d = new Date(raw);
-      if (Number.isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}`;
-      map[key] = (map[key] || 0) + 1;
-    }
-    return map;
-  }, [tenders]);
-
+  // ---- months map already prepared as monthCountsMap { "YYYY-MM": { label, count } } ----
   const monthsChart = useMemo(() => {
-    const selMonths = selectedMonths.map((o) => o.value);
-    const selYears = selectedYears.map((o) => o.value);
+    const keys = Object.keys(monthCountsMap);
+    if (!keys.length) return { labels: [], datasets: [] };
 
-    if (selMonths.length === 0 && selYears.length === 0) {
-      return { labels: [], datasets: [] };
-    }
+    // if user selected specific months or years, filter; otherwise show all
+    let filtered = keys;
+    const selMonths = selectedMonths.map((o) => o.value); // we store values as "YYYY-MM"
+    const selYears = selectedYears.map((o) => String(o.value));
 
-    let keys = Object.keys(monthCountsAll);
     if (selMonths.length) {
-      keys = keys.filter((k) => {
-        const [yy, mm] = k.split("-");
-        const monthName = new Date(`${yy}-${mm}-01`).toLocaleString("default", {
-          month: "short",
-        });
-        return selMonths.includes(monthName);
-      });
+      filtered = filtered.filter((k) => selMonths.includes(k));
     }
     if (selYears.length) {
-      keys = keys.filter((k) => selYears.includes(k.split("-")[0]));
+      filtered = filtered.filter((k) => selYears.includes(k.split("-")[0]));
     }
 
-    keys.sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
+    filtered.sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
 
-    const labels = keys.map((k) => {
-      const [yy, mm] = k.split("-");
-      const mName = new Date(`${yy}-${mm}-01`).toLocaleString("default", {
-        month: "short",
-      });
-      return `${mName} ${yy}`;
-    });
-
-    const data = keys.map((k) => monthCountsAll[k] || 0);
+    const labels = filtered.map((k) => monthCountsMap[k].label);
+    const data = filtered.map((k) => monthCountsMap[k].count || 0);
 
     return {
       labels,
@@ -202,16 +231,13 @@ export default function Home() {
         {
           label: t("tenders_by_month"),
           data,
-          backgroundColor: labels.map(
-            (_, i) => `hsl(${(i * 45) % 360}, 70%, 50%)`
-          ),
+          backgroundColor: labels.map((_, i) => `hsl(${(i * 45) % 360}, 70%, 50%)`),
           barThickness: 30,
         },
       ],
     };
-  }, [monthCountsAll, selectedMonths, selectedYears, t]);
+  }, [monthCountsMap, selectedMonths, selectedYears, t]);
 
-  // ---- Views ----
   const views = ["regions", "sectors", "months", "tenders"];
 
   const handleNavClick = (view) => {
@@ -224,7 +250,6 @@ export default function Home() {
       className="flex h-screen bg-gray-900 text-gray-100 font-[Inter]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      {/* Sidebar */}
       <aside className="w-64 shrink-0 bg-gray-800 border-r border-gray-700 p-4 overflow-y-auto shadow-lg">
         <h2 className="text-xl font-bold text-blue-400 mb-6">Tender Trend</h2>
         <div className="space-y-2">
@@ -233,9 +258,7 @@ export default function Home() {
               key={v}
               onClick={() => handleNavClick(v)}
               className={`w-full text-left px-3 py-2 rounded-md transition-all duration-200 ${
-                selectedView === v
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-gray-700 hover:bg-gray-600"
+                selectedView === v ? "bg-blue-600 text-white shadow-lg" : "bg-gray-700 hover:bg-gray-600"
               }`}
             >
               {t(v)}
@@ -243,83 +266,47 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Filters */}
         {selectedView === "sectors" && (
           <div className="mt-6">
             <p className="text-sm mb-2 text-gray-300">{t("select_sectors")}</p>
-            <Select
-              isMulti
-              options={allSectorsOpts}
-              value={selectedSectors}
-              onChange={setSelectedSectors}
-              placeholder={t("select_sectors")}
-              className="text-black"
-            />
+            <Select isMulti options={allSectorsOpts} value={selectedSectors} onChange={setSelectedSectors} placeholder={t("select_sectors")} className="text-black" />
           </div>
         )}
 
         {selectedView === "months" && (
           <div className="mt-6 space-y-4">
             <p className="text-sm text-gray-300">{t("filter_by_month_year")}</p>
-            <Select
-              isMulti
-              options={allMonthsOpts}
-              value={selectedMonths}
-              onChange={setSelectedMonths}
-              placeholder={t("select_months")}
-              className="text-black"
-            />
-            <Select
-              isMulti
-              options={allYearsOpts}
-              value={selectedYears}
-              onChange={setSelectedYears}
-              placeholder={t("select_years")}
-              className="text-black"
-            />
+            <Select isMulti options={allMonthsOpts} value={selectedMonths} onChange={setSelectedMonths} placeholder={t("select_months")} className="text-black" />
+            <Select isMulti options={allYearsOpts} value={selectedYears} onChange={setSelectedYears} placeholder={t("select_years")} className="text-black" />
           </div>
         )}
       </aside>
 
-      {/* Content */}
       <main className="flex-1 p-6 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-6 text-blue-400">Tender Trend</h1>
-
-        {selectedView && selectedView !== "tenders" && (
+        {loading ? (
+          <p>Loading...</p>
+        ) : error ? (
+          <p>Error: {error}</p>
+        ) : selectedView && selectedView !== "tenders" && (
           <div className="space-y-6">
-            {/* Chart */}
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg" style={{ height: 460 }}>
               <Bar
-                data={
-                  selectedView === "regions"
-                    ? regionChart
-                    : selectedView === "sectors"
-                    ? sectorChart
-                    : monthsChart
-                }
+                data={selectedView === "regions" ? regionChart : selectedView === "sectors" ? sectorChart : monthsChart}
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
                   animation: { duration: 400 },
-                  plugins: {
-                    legend: { labels: { color: "#ddd" } },
-                  },
+                  plugins: { legend: { labels: { color: "#ddd" } } },
                   scales: {
-                    x: {
-                      ticks: { color: "#ddd" },
-                      grid: { color: "#444" },
-                    },
-                    y: {
-                      ticks: { color: "#ddd" },
-                      grid: { color: "#444" },
-                    },
+                    x: { ticks: { color: "#ddd" }, grid: { color: "#444" } },
+                    y: { ticks: { color: "#ddd" }, grid: { color: "#444" } },
                   },
                 }}
                 height={400}
               />
             </div>
 
-            {/* Table */}
             <div className="flex justify-center">
               <table className="min-w-[400px] max-w-[600px] border border-gray-700 text-sm rounded-lg overflow-hidden shadow-lg">
                 <thead className="bg-blue-600 text-white">
@@ -331,28 +318,14 @@ export default function Home() {
                 <tbody>
                   {(
                     (selectedView === "regions"
-                      ? regionChart.labels.map((lab, i) => ({
-                          label: lab,
-                          count: regionChart.datasets[0].data[i],
-                        }))
+                      ? regionChart.labels.map((lab, i) => ({ label: lab, count: regionChart.datasets[0].data[i] || 0 }))
                       : selectedView === "sectors"
-                      ? sectorChart.labels.map((lab, i) => ({
-                          label: lab,
-                          count: sectorChart.datasets[0].data[i],
-                        }))
-                      : monthsChart.labels.map((lab, i) => ({
-                          label: lab,
-                          count: monthsChart.datasets[0].data[i],
-                        }))) || []
+                      ? sectorChart.labels.map((lab, i) => ({ label: lab, count: sectorChart.datasets[0].data[i] || 0 }))
+                      : monthsChart.labels.map((lab, i) => ({ label: lab, count: monthsChart.datasets[0].data[i] || 0 }))) || []
                   ).map((row, i) => (
-                    <tr
-                      key={`${row.label}-${i}`}
-                      className={i % 2 ? "bg-gray-800" : "bg-gray-900"}
-                    >
+                    <tr key={`${row.label}-${i}`} className={i % 2 ? "bg-gray-800" : "bg-gray-900"}>
                       <td className="border border-gray-700 p-2">{row.label}</td>
-                      <td className="border border-gray-700 p-2 text-right">
-                        {row.count}
-                      </td>
+                      <td className="border border-gray-700 p-2 text-right">{row.count}</td>
                     </tr>
                   ))}
                 </tbody>
