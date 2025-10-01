@@ -10,7 +10,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://tender-trend.vercel.app/"],  # React dev server (Vercel)
+    allow_origins=["https://tender-trend.vercel.app"],  # React dev server (Vercel)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
