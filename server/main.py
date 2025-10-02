@@ -5,6 +5,11 @@ from psycopg2.extras import RealDictCursor
 import os
 from contextlib import contextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import os
+
+# Load env vars from .env file
+load_dotenv()
 
 app = FastAPI()
 
@@ -19,13 +24,7 @@ app.add_middleware(
 # Database connection context manager
 @contextmanager
 def get_db_connection():
-    conn = psycopg2.connect(
-        dbname=os.getenv("DB_NAME", "tenderlens"),
-        user=os.getenv("DB_USER", "tenderlens"),
-        password=os.getenv("DB_PASSWORD", "tenderlens"),
-        host=os.getenv("DB_HOST", "localhost"),
-        port=os.getenv("DB_PORT", "5432")
-    )
+    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
     try:
         yield conn
     finally:
@@ -95,25 +94,25 @@ async def get_tenders(
             if where_clause:
                 where_clause = "WHERE " + where_clause
 
+            # Query for filtered count
+            count_query = sql.SQL("SELECT COUNT(*) AS count FROM tenders {}").format(
+                sql.SQL(where_clause) if where_clause else sql.SQL("")
+            )
+            cursor.execute(count_query, params)
+            total = cursor.fetchone()['count']  # Access dictionary key 'count'
+
+            # Query for filtered tenders
             query = sql.SQL(f"""
                 SELECT * FROM tenders
                 {where_clause}
                 ORDER BY {sortBy} { 'DESC' if sortOrder.lower() == 'desc' else 'ASC' }
                 LIMIT %s OFFSET %s
             """)
-
             params.extend([per_page, offset])
             cursor.execute(query, params)
             tenders = cursor.fetchall()
 
-    return {"tenders": tenders, "total": get_total_tenders()}
-
-def get_total_tenders():
-    with get_db_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM tenders")
-            total = cursor.fetchone()[0]
-            return total
+    return {"tenders": tenders, "total": total}
 
 @app.get("/trends/regions/counts")
 async def get_region_counts():
@@ -156,5 +155,4 @@ async def get_month_counts():
             """)
             rows = cursor.fetchall()
             return rows
-
-# No need for shutdown event since connections are managed per request
+        
