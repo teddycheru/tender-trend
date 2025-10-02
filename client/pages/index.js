@@ -29,9 +29,9 @@ export default function Home() {
 
   const [regions, setRegions] = useState([]);
   const [sectors, setSectors] = useState([]);
-  const [regionCounts, setRegionCounts] = useState([]); // array of {region, count} or []
-  const [sectorCounts, setSectorCounts] = useState([]); // array of {predicted_category, count} or []
-  const [monthCountsMap, setMonthCountsMap] = useState({}); // { "2024-01": { label: "Jan 2024", count: 12 }, ... }
+  const [regionCounts, setRegionCounts] = useState([]);
+  const [sectorCounts, setSectorCounts] = useState([]);
+  const [monthCountsMap, setMonthCountsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -76,28 +76,20 @@ export default function Home() {
           monthCountsRes.json(),
         ]);
 
-        console.log("Fetched regions (raw):", regionsJson);
-        console.log("Fetched sectors (raw):", sectorsJson);
-        console.log("Fetched region counts (raw):", regionCountsJson);
-        console.log("Fetched sector counts (raw):", sectorCountsJson);
         console.log("Fetched month counts (raw):", monthCountsJson);
 
-        // Build normalized maps and safe lists
-        // Regions: prefer aggregated endpoint if it returns objects like {region, count}
+        // Sort regions alphabetically
         let derivedRegions = [];
         if (Array.isArray(regionCountsJson) && regionCountsJson.length && typeof regionCountsJson[0] === "object" && "region" in regionCountsJson[0]) {
-          derivedRegions = regionCountsJson.map((r) => r.region);
+          derivedRegions = [...new Set(regionCountsJson.map((r) => r.region))].sort((a, b) => normalize(a).localeCompare(normalize(b)));
           setRegionCounts(regionCountsJson);
         } else {
-          // fallback to /trends/regions which may be an array of strings
-          derivedRegions = Array.isArray(regionsJson) ? regionsJson : [];
-          setRegionCounts([]); // no counts available
+          derivedRegions = Array.isArray(regionsJson) ? [...regionsJson].sort((a, b) => normalize(a).localeCompare(normalize(b))) : [];
+          setRegionCounts([]);
         }
 
-        // Sectors: aggregated endpoint returns predicted_category
         let derivedSectors = [];
         if (Array.isArray(sectorCountsJson) && sectorCountsJson.length && typeof sectorCountsJson[0] === "object" && ("predicted_category" in sectorCountsJson[0] || "category" in sectorCountsJson[0])) {
-          // normalize to use predicted_category accessor if available
           setSectorCounts(sectorCountsJson);
           derivedSectors = sectorCountsJson.map((r) => r.predicted_category ?? r.category);
         } else {
@@ -109,24 +101,40 @@ export default function Home() {
         setSectors(derivedSectors);
         setAllSectorsOpts(derivedSectors.map((s) => ({ value: s, label: s })));
 
-        // Months: backend returns rows { year, month, count }
-        const mMap = {}; // key -> { label, count }
+        // Months: extract month names and years, set latest month as default
+        const monthMap = {};
+        const monthNames = [];
+        const yearSet = new Set();
         if (Array.isArray(monthCountsJson)) {
           for (const r of monthCountsJson) {
-            // backend may return numbers or strings
             const year = Number(r.year);
-            const monthNum = Number(r.month); // 1..12
-            if (!Number.isFinite(year) || !Number.isFinite(monthNum)) continue;
-            const key = `${year}-${String(monthNum).padStart(2, "0")}`; // 2024-01
-            const label = new Date(year, monthNum - 1, 1).toLocaleString("default", { month: "short" }) + ` ${year}`;
-            mMap[key] = { label, count: Number(r.count) || 0, year, month: monthNum };
+            const monthNum = Number(r.month);
+            if (!Number.isFinite(year) || !Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) continue;
+            const key = `${year}-${String(monthNum).padStart(2, "0")}`;
+            const monthName = new Date(year, monthNum - 1, 1).toLocaleString("default", { month: "long" });
+            monthMap[key] = { label: `${monthName} ${year}`, count: Number(r.count) || 0, year, month: monthNum };
+            monthNames.push(monthName);
+            yearSet.add(year);
           }
         }
-        // sort keys for options
-        const monthKeys = Object.keys(mMap).sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
-        setMonthCountsMap(mMap);
-        setAllMonthsOpts(monthKeys.map((k) => ({ value: k, label: mMap[k].label })));
-        const years = [...new Set(Object.values(mMap).map((v) => v.year))].sort((a, b) => a - b);
+        const uniqueMonthNames = [...new Set(monthNames)].sort((a, b) => {
+          const monthsOrder = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+          ];
+          return monthsOrder.indexOf(a) - monthsOrder.indexOf(b);
+        });
+        setMonthCountsMap(monthMap);
+        setAllMonthsOpts(uniqueMonthNames.map((m) => ({ value: m, label: m })));
+
+        // Set latest month as default
+        const sortedKeys = Object.keys(monthMap).sort((a, b) => new Date(b + "-01") - new Date(a + "-01")); // Latest first
+        const latestKey = sortedKeys[0];
+        const latestMonthName = monthMap[latestKey].label.split(" ")[0]; // e.g., "September"
+        setSelectedMonths([{ value: latestMonthName, label: latestMonthName }]);
+
+        // Years
+        const years = [...yearSet].sort((a, b) => a - b);
         setAllYearsOpts(years.map((y) => ({ value: y, label: String(y) })));
 
       } catch (err) {
@@ -145,7 +153,7 @@ export default function Home() {
     console.log("Rendering regionChart, regions:", regions.length, "regionCounts:", (regionCounts || []).length);
     if (!regions.length) return { labels: [], datasets: [] };
 
-    // build map normalizedRegion -> count
+    // Build map of normalized region to count
     const countsMap = {};
     if (Array.isArray(regionCounts) && regionCounts.length) {
       for (const r of regionCounts) {
@@ -154,7 +162,7 @@ export default function Home() {
       }
     }
 
-    // fallback: if countsMap empty we'll set zeros
+    // Use sorted regions for labels, fallback to 0 if no count
     const labels = regions;
     const data = labels.map((lab) => countsMap[normalize(lab)] ?? 0);
 
@@ -208,13 +216,16 @@ export default function Home() {
     const keys = Object.keys(monthCountsMap);
     if (!keys.length) return { labels: [], datasets: [] };
 
-    // if user selected specific months or years, filter; otherwise show all
     let filtered = keys;
-    const selMonths = selectedMonths.map((o) => o.value); // we store values as "YYYY-MM"
-    const selYears = selectedYears.map((o) => String(o.value));
+    const selMonths = selectedMonths.map((o) => o.value); // e.g., ["March"]
+    const selYears = selectedYears.map((o) => String(o.value)); // e.g., ["2024", "2025"]
 
     if (selMonths.length) {
-      filtered = filtered.filter((k) => selMonths.includes(k));
+      filtered = filtered.filter((k) => {
+        const monthNum = Number(k.split("-")[1]);
+        const monthName = new Date(2000, monthNum - 1, 1).toLocaleString("default", { month: "long" }); // e.g., "March"
+        return selMonths.includes(monthName);
+      });
     }
     if (selYears.length) {
       filtered = filtered.filter((k) => selYears.includes(k.split("-")[0]));
@@ -222,7 +233,11 @@ export default function Home() {
 
     filtered.sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
 
-    const labels = filtered.map((k) => monthCountsMap[k].label);
+    const labels = filtered.map((k) => {
+      const [year, month] = k.split("-");
+      const monthName = new Date(year, Number(month) - 1, 1).toLocaleString("default", { month: "long" });
+      return `${monthName} ${year}`; // e.g., "March 2024"
+    });
     const data = filtered.map((k) => monthCountsMap[k].count || 0);
 
     return {
@@ -275,9 +290,9 @@ export default function Home() {
 
         {selectedView === "months" && (
           <div className="mt-6 space-y-4">
-            <p className="text-sm text-gray-300">{t("filter_by_month_year")}</p>
-            <Select isMulti options={allMonthsOpts} value={selectedMonths} onChange={setSelectedMonths} placeholder={t("select_months")} className="text-black" />
-            <Select isMulti options={allYearsOpts} value={selectedYears} onChange={setSelectedYears} placeholder={t("select_years")} className="text-black" />
+            <p className="text-sm text-gray-300">Filter by Month and Year</p> {/* Updated label */}
+            <Select isMulti options={allMonthsOpts} value={selectedMonths} onChange={setSelectedMonths} placeholder="Select Months" className="text-black" />
+            <Select isMulti options={allYearsOpts} value={selectedYears} onChange={setSelectedYears} placeholder="Select Years" className="text-black" />
           </div>
         )}
       </aside>
