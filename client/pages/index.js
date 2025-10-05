@@ -12,6 +12,7 @@ import {
   Legend,
 } from "chart.js";
 import { useRouter } from "next/router";
+import Link from "next/link";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -37,7 +38,7 @@ export default function Public() {
         setSectorCounts(await sectorsRes.json());
         setMonthCounts(await monthsRes.json());
       } catch (error) {
-        console.error("Error fetching public data:", error);
+        console.error("Event fetching public data:", error);
       }
     };
     fetchPublicData();
@@ -111,11 +112,31 @@ export default function Public() {
       {/* Navigation Menu (Top) */}
       <nav className="bg-gray-800 text-white p-4">
         <ul className="flex space-x-6 justify-center">
-          <li><a href="/" className="hover:text-blue-300">Home</a></li>
-          <li><a href="/about" className="hover:text-blue-300">About</a></li>
-          <li><a href="/contact" className="hover:text-blue-300">Contact</a></li>
-          <li><a href="/login" className="hover:text-blue-300">Log In</a></li>
-          <li><a href="/register" className="hover:text-blue-300">Sign Up</a></li>
+          <li>
+            <Link href="/" legacyBehavior>
+              <a className="hover:text-blue-300">Home</a>
+            </Link>
+          </li>
+          <li>
+            <Link href="/about" legacyBehavior>
+              <a className="hover:text-blue-300">About</a>
+            </Link>
+          </li>
+          <li>
+            <Link href="/contact" legacyBehavior>
+              <a className="hover:text-blue-300">Contact</a>
+            </Link>
+          </li>
+          <li>
+            <Link href="/login" legacyBehavior>
+              <a className="hover:text-blue-300">Log In</a>
+            </Link>
+          </li>
+          <li>
+            <Link href="/register" legacyBehavior>
+              <a className="hover:text-blue-300">Sign Up</a>
+            </Link>
+          </li>
         </ul>
       </nav>
 
@@ -152,22 +173,30 @@ export default function Public() {
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Tender Discovery</h3>
             <p className="text-gray-600 mt-2">Find relevant tenders effortlessly.</p>
-            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            <Link href="/dashboard" legacyBehavior>
+              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            </Link>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Smart Analysis</h3>
             <p className="text-gray-600 mt-2">Gain insights with advanced tools.</p>
-            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            <Link href="/dashboard" legacyBehavior>
+              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            </Link>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Bid Insights</h3>
             <p className="text-gray-600 mt-2">Optimize your bidding strategy.</p>
-            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            <Link href="/dashboard" legacyBehavior>
+              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            </Link>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Alerts & Notifications</h3>
             <p className="text-gray-600 mt-2">Stay updated on new opportunities.</p>
-            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            <Link href="/dashboard" legacyBehavior>
+              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
+            </Link>
           </div>
         </div>
       </section>
@@ -331,8 +360,16 @@ export default function Public() {
           <div className="mb-4 md:mb-0">
             <h4 className="text-lg font-semibold mb-2">Quick Links</h4>
             <ul className="space-y-1">
-              <li><a href="/support" className="hover:text-blue-300">Support/Help Desk</a></li>
-              <li><a href="/terms" className="hover:text-blue-300">Terms & Privacy</a></li>
+              <li>
+                <Link href="/support" legacyBehavior>
+                  <a className="hover:text-blue-300">Support/Help Desk</a>
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" legacyBehavior>
+                  <a className="hover:text-blue-300">Terms & Privacy</a>
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -347,9 +384,15 @@ export default function Public() {
           <div className="mb-4 md:mb-0">
             <h4 className="text-lg font-semibold mb-2">Follow Us</h4>
             <div className="flex space-x-4">
-              <a href="https://facebook.com" className="hover:text-blue-300">Facebook</a>
-              <a href="https://twitter.com" className="hover:text-blue-300">Twitter</a>
-              <a href="https://linkedin.com" className="hover:text-blue-300">LinkedIn</a>
+              <Link href="https://facebook.com" legacyBehavior>
+                <a className="hover:text-blue-300">Facebook</a>
+              </Link>
+              <Link href="https://twitter.com" legacyBehavior>
+                <a className="hover:text-blue-300">Twitter</a>
+              </Link>
+              <Link href="https://linkedin.com" legacyBehavior>
+                <a className="hover:text-blue-300">LinkedIn</a>
+              </Link>
             </div>
           </div>
         </div>

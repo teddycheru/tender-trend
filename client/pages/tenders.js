@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import DOMPurify from 'dompurify';
 import Link from 'next/link';
+import { useRouter } from 'next/router'; 
 
 const toMMM_DD_YYYY = (isoDate) => {
   if (!isoDate) return '';
@@ -12,6 +13,7 @@ const toMMM_DD_YYYY = (isoDate) => {
 
 export default function Tenders() {
   const { t } = useTranslation();
+  const router = useRouter(); 
   const [tenders, setTenders] = useState([]);
   const [regions, setRegions] = useState([]);
   const [sectors, setSectors] = useState([]);
@@ -31,28 +33,8 @@ export default function Tenders() {
   });
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setError(null);
-        const regionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/trends/regions`);
-        if (!regionRes.ok) throw new Error(`Failed to fetch regions: ${regionRes.status}`);
-        setRegions(await regionRes.json());
-
-        const sectorRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/trends/sectors`);
-        if (!sectorRes.ok) throw new Error(`Failed to fetch sectors: ${sectorRes.status}`);
-        setSectors(await sectorRes.json());
-
-        await fetchTenders();
-      } catch (err) {
-        console.error(err);
-        setError(err.message);
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  const fetchTenders = async () => {
+  // Memoize fetchTenders to prevent unnecessary re-renders
+  const fetchTenders = useCallback(async () => {
     try {
       setError(null);
       let query = `${process.env.NEXT_PUBLIC_API_URL}/tenders?`;
@@ -90,9 +72,41 @@ export default function Tenders() {
       console.error(err);
       setError(err.message);
     }
-  };
+  }, [filters, currentPage]); // Dependencies: filters and currentPage
 
-  useEffect(() => { fetchTenders(); }, [filters, currentPage]);
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        setError(null);
+        const regionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/trends/regions`);
+        if (!regionRes.ok) throw new Error(`Failed to fetch regions: ${regionRes.status}`);
+        setRegions(await regionRes.json());
+
+        const sectorRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/trends/sectors`);
+        if (!sectorRes.ok) throw new Error(`Failed to fetch sectors: ${sectorRes.status}`);
+        setSectors(await sectorRes.json());
+
+        await fetchTenders();
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      }
+    };
+    fetchInitialData();
+  }, []); // Empty dependency array for initial fetch
+
+  useEffect(() => {
+    fetchTenders();
+  }, [fetchTenders]); // Updated with fetchTenders dependency
+
+  // Authentication check
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const expiry = localStorage.getItem("token_expiry");
+    if (!token || (expiry && Number(expiry) < Date.now())) {
+      router.replace("/login"); // Redirect to login if not authenticated
+    }
+  }, [router]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
