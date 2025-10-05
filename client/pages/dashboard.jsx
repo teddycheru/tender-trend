@@ -14,6 +14,7 @@ import {
   Legend,
 } from "chart.js";
 import Select from "react-select";
+import Link from "next/link";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -449,53 +450,46 @@ export default function Dashboard() {
         <nav className="bg-gray-800 p-4 mb-6 rounded-lg shadow-lg">
           <ul className="flex justify-center space-x-6">
             <li>
-              <a
-                href="/"
-                onClick={(e) => { e.preventDefault(); router.push("/"); }}
-                className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}
-              >
-                Home
-              </a>
+              <Link href="/" legacyBehavior>
+                <button className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}>
+                  Home
+                </button>
+              </Link>
             </li>
             <li>
-              <a
-                href="/resources"
-                onClick={(e) => { e.preventDefault(); router.push("/resources"); }}
-                className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/resources" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}
-              >
-                Resources
-              </a>
+              <Link href="/resources" legacyBehavior>
+                <button className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/resources" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}>
+                  Resources
+                </button>
+              </Link>
             </li>
             <li>
-              <a
-                href="/pricing"
-                onClick={(e) => { e.preventDefault(); router.push("/pricing"); }}
-                className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/pricing" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}
-              >
-                Pricing
-              </a>
+              <Link href="/pricing" legacyBehavior>
+                <button className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/pricing" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}>
+                  Pricing
+                </button>
+              </Link>
             </li>
             <li>
-              <a
-                href="/profile"
-                onClick={(e) => { e.preventDefault(); router.push("/profile"); }}
-                className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/profile" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}
-              >
-                Profile
-              </a>
+              <Link href="/profile" legacyBehavior>
+                <button className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/profile" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}>
+                  Profile
+                </button>
+              </Link>
             </li>
             <li>
-            <a
-              href="#"
-              onClick={(e) => { 
-                e.preventDefault(); 
-                setShowLogoutConfirm(true); 
-              }}
-              className="px-3 py-2 rounded-md transition-all duration-200 text-gray-300 hover:bg-gray-600 hover:text-white"
-            >
-              Logout
-            </a>
-          </li>
+              <Link href="/login" legacyBehavior>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setShowLogoutConfirm(true);
+                  }}
+                  className={`px-3 py-2 rounded-md transition-all duration-200 ${router.pathname === "/login" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600 hover:text-white"}`}
+                >
+                  Logout
+                </button>
+              </Link>
+            </li>
           </ul>
         </nav>
 
@@ -524,7 +518,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
 
         {loadingData ? (
           <p>Loading...</p>
