@@ -12,7 +12,6 @@ import {
   Legend,
 } from "chart.js";
 import { useRouter } from "next/router";
-import Link from "next/link";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -38,7 +37,7 @@ export default function Public() {
         setSectorCounts(await sectorsRes.json());
         setMonthCounts(await monthsRes.json());
       } catch (error) {
-        console.error("Event fetching public data:", error);
+        console.error("Error fetching public data:", error);
       }
     };
     fetchPublicData();
@@ -48,11 +47,8 @@ export default function Public() {
     labels: regionCounts.map(r => r.region),
     datasets: [
       {
-        label: "Top 10 Regions in 2025 (% of Total)",
-        data: regionCounts.map(r => {
-          const total = regionCounts.reduce((sum, r) => sum + (r.count || 0), 0);
-          return total > 0 ? ((r.count / total) * 100).toFixed(1) : 0;
-        }),
+        label: "Top 10 Regions in 2025",
+        data: regionCounts.map(r => r.count),
         backgroundColor: "rgba(54, 162, 235, 0.6)",
         barThickness: 20,
       },
@@ -63,11 +59,8 @@ export default function Public() {
     labels: sectorCounts.map(s => s.predicted_category),
     datasets: [
       {
-        label: "Top 10 Sectors in 2025 (% of Total)",
-        data: sectorCounts.map(s => {
-          const total = sectorCounts.reduce((sum, s) => sum + (s.count || 0), 0);
-          return total > 0 ? ((s.count / total) * 100).toFixed(1) : 0;
-        }),
+        label: "Top 10 Sectors in 2025",
+        data: sectorCounts.map(s => s.count),
         backgroundColor: "rgba(75, 192, 192, 0.6)",
         barThickness: 20,
       },
@@ -75,10 +68,10 @@ export default function Public() {
   };
 
   const monthChartData = {
-    labels: monthCounts.map(m => `${new Date(m.year, m.month - 1).toLocaleString('default', { month: 'short' })} ${m.year}`),
+    labels: monthCounts.map(m => `${new Date(2025, m.month - 1).toLocaleString('default', { month: 'short' })} 2025`),
     datasets: [
       {
-        label: "Tender Trends",
+        label: "Tender Trends in 2025",
         data: monthCounts.map(m => m.count),
         borderColor: "rgba(153, 102, 255, 0.6)",
         backgroundColor: "rgba(153, 102, 255, 0.2)",
@@ -88,7 +81,7 @@ export default function Public() {
     ],
   };
 
-  const chartOptions = (isPercentage = false) => ({
+  const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -97,58 +90,32 @@ export default function Public() {
     },
     scales: {
       x: { ticks: { color: "#666" } },
-      y: {
-        ticks: { color: "#666", beginAtZero: true },
-        ...(isPercentage && {
-          callback: value => `${value}%`,
-          max: 100,
-        }),
-      },
+      y: { ticks: { color: "#666" }, beginAtZero: true },
     },
-  });
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
       {/* Navigation Menu (Top) */}
       <nav className="bg-gray-800 text-white p-4">
         <ul className="flex space-x-6 justify-center">
-          <li>
-            <Link href="/" legacyBehavior>
-              <a className="hover:text-blue-300">Home</a>
-            </Link>
-          </li>
-          <li>
-            <Link href="/about" legacyBehavior>
-              <a className="hover:text-blue-300">About</a>
-            </Link>
-          </li>
-          <li>
-            <Link href="/contact" legacyBehavior>
-              <a className="hover:text-blue-300">Contact</a>
-            </Link>
-          </li>
-          <li>
-            <Link href="/login" legacyBehavior>
-              <a className="hover:text-blue-300">Log In</a>
-            </Link>
-          </li>
-          <li>
-            <Link href="/register" legacyBehavior>
-              <a className="hover:text-blue-300">Sign Up</a>
-            </Link>
-          </li>
+          <li><a href="/" className="hover:text-blue-300">Home</a></li>
+          <li><a href="/about" className="hover:text-blue-300">About</a></li>
+          <li><a href="/contact" className="hover:text-blue-300">Contact</a></li>
+          <li><a href="/login" className="hover:text-blue-300">Log In</a></li>
+          <li><a href="/register" className="hover:text-blue-300">Sign Up</a></li>
         </ul>
       </nav>
 
       {/* Welcome and What This Web App Does Section */}
       <header className="bg-blue-600 text-white py-12 text-center">
-        <h1 className="text-4xl font-bold">Welcome to TenderLens</h1>
-        <p className="mt-2 text-lg">TenderLens helps businesses discover, analyze, and win tenders with smart insights tailored to your needs.</p>
+        <h1 className="text-4xl font-bold">Welcome to TenderTrend</h1>
+        <p className="mt-2 text-lg">TenderTrend helps businesses discover, analyze, and win tenders with smart insights tailored to your needs.</p>
       </header>
 
       {/* Hero Section */}
       <section className="bg-blue-50 py-12 text-center">
-        <h2 className="text-4xl font-bold text-gray-800">Unlock Tender Opportunities with TenderLens</h2>
+        <h2 className="text-4xl font-bold text-gray-800">Unlock Tender Opportunities with TenderTrend</h2>
         <p className="mt-4 text-lg text-gray-600">Explore global tender trends in 2025 and get started with free summaries.</p>
         <div className="mt-6 space-x-4">
           <button
@@ -173,30 +140,22 @@ export default function Public() {
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Tender Discovery</h3>
             <p className="text-gray-600 mt-2">Find relevant tenders effortlessly.</p>
-            <Link href="/dashboard" legacyBehavior>
-              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
-            </Link>
+            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Smart Analysis</h3>
             <p className="text-gray-600 mt-2">Gain insights with advanced tools.</p>
-            <Link href="/dashboard" legacyBehavior>
-              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
-            </Link>
+            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Bid Insights</h3>
             <p className="text-gray-600 mt-2">Optimize your bidding strategy.</p>
-            <Link href="/dashboard" legacyBehavior>
-              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
-            </Link>
+            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
           </div>
           <div className="text-center p-4 bg-white rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700">Alerts & Notifications</h3>
             <p className="text-gray-600 mt-2">Stay updated on new opportunities.</p>
-            <Link href="/dashboard" legacyBehavior>
-              <a className="text-blue-500 hover:underline mt-2 block">Learn More</a>
-            </Link>
+            <a href="/dashboard" className="text-blue-500 hover:underline mt-2 block">Learn More</a>
           </div>
         </div>
       </section>
@@ -223,32 +182,28 @@ export default function Public() {
       {/* Summary Section */}
       <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <section className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Tender Trends Overview</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">2025 Tender Trends Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Regions Chart */}
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 10 Regions in 2025</h3>
               <div style={{ height: "300px" }}>
-                <Bar data={regionChartData} options={chartOptions(true)} />
+                <Bar data={regionChartData} options={chartOptions} />
               </div>
               <table className="mt-4 w-full text-sm">
                 <thead>
                   <tr className="bg-gray-200">
                     <th className="p-2 text-left">Region</th>
-                    <th className="p-2 text-right">Percentage</th>
+                    <th className="p-2 text-right">Count</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {regionCounts.map(r => {
-                    const total = regionCounts.reduce((sum, r) => sum + (r.count || 0), 0);
-                    const percentage = total > 0 ? ((r.count / total) * 100).toFixed(1) : 0;
-                    return (
-                      <tr key={r.region} className="border-b">
-                        <td className="p-2">{r.region}</td>
-                        <td className="p-2 text-right">{percentage}%</td>
-                      </tr>
-                    );
-                  })}
+                  {regionCounts.map(r => (
+                    <tr key={r.region} className="border-b">
+                      <td className="p-2">{r.region}</td>
+                      <td className="p-2 text-right">{r.count}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               <button
@@ -263,26 +218,22 @@ export default function Public() {
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 10 Sectors in 2025</h3>
               <div style={{ height: "300px" }}>
-                <Bar data={sectorChartData} options={chartOptions(true)} />
+                <Bar data={sectorChartData} options={chartOptions} />
               </div>
               <table className="mt-4 w-full text-sm">
                 <thead>
                   <tr className="bg-gray-200">
                     <th className="p-2 text-left">Sector</th>
-                    <th className="p-2 text-right">Percentage</th>
+                    <th className="p-2 text-right">Count</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sectorCounts.map(s => {
-                    const total = sectorCounts.reduce((sum, s) => sum + (s.count || 0), 0);
-                    const percentage = total > 0 ? ((s.count / total) * 100).toFixed(1) : 0;
-                    return (
-                      <tr key={s.predicted_category} className="border-b">
-                        <td className="p-2">{s.predicted_category}</td>
-                        <td className="p-2 text-right">{percentage}%</td>
-                      </tr>
-                    );
-                  })}
+                  {sectorCounts.map(s => (
+                    <tr key={s.predicted_category} className="border-b">
+                      <td className="p-2">{s.predicted_category}</td>
+                      <td className="p-2 text-right">{s.count}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               <button
@@ -295,9 +246,9 @@ export default function Public() {
 
             {/* Months Chart */}
             <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-semibold text-gray-700 mb-4">Tender Trends</h3>
+              <h3 className="text-xl font-semibold text-gray-700 mb-4">Tender Trends in 2025</h3>
               <div style={{ height: "300px" }}>
-                <Line data={monthChartData} options={chartOptions(false)} />
+                <Line data={monthChartData} options={chartOptions} />
               </div>
               <table className="mt-4 w-full text-sm">
                 <thead>
@@ -309,9 +260,7 @@ export default function Public() {
                 <tbody>
                   {monthCounts.map(m => (
                     <tr key={`${m.year}-${m.month}`} className="border-b">
-                      <td className="p-2">
-                        {`${new Date(m.year, m.month - 1).toLocaleString('default', { month: 'short' })} ${m.year}`}
-                      </td>
+                      <td className="p-2">{`${new Date(2025, m.month - 1).toLocaleString('default', { month: 'short' })} 2025`}</td>
                       <td className="p-2 text-right">{m.count}</td>
                     </tr>
                   ))}
@@ -360,23 +309,15 @@ export default function Public() {
           <div className="mb-4 md:mb-0">
             <h4 className="text-lg font-semibold mb-2">Quick Links</h4>
             <ul className="space-y-1">
-              <li>
-                <Link href="/support" legacyBehavior>
-                  <a className="hover:text-blue-300">Support/Help Desk</a>
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" legacyBehavior>
-                  <a className="hover:text-blue-300">Terms & Privacy</a>
-                </Link>
-              </li>
+              <li><a href="/support" className="hover:text-blue-300">Support/Help Desk</a></li>
+              <li><a href="/terms" className="hover:text-blue-300">Terms & Privacy</a></li>
             </ul>
           </div>
 
           {/* Contact Info */}
           <div className="mb-4 md:mb-0">
             <h4 className="text-lg font-semibold mb-2">Contact Info</h4>
-            <p>Email: support@tenderlens.com</p>
+            <p>Email: support@tendertrend.com</p>
             <p>Phone: +251 911 123 456</p>
           </div>
 
@@ -384,15 +325,9 @@ export default function Public() {
           <div className="mb-4 md:mb-0">
             <h4 className="text-lg font-semibold mb-2">Follow Us</h4>
             <div className="flex space-x-4">
-              <Link href="https://facebook.com" legacyBehavior>
-                <a className="hover:text-blue-300">Facebook</a>
-              </Link>
-              <Link href="https://twitter.com" legacyBehavior>
-                <a className="hover:text-blue-300">Twitter</a>
-              </Link>
-              <Link href="https://linkedin.com" legacyBehavior>
-                <a className="hover:text-blue-300">LinkedIn</a>
-              </Link>
+              <a href="https://facebook.com" className="hover:text-blue-300">Facebook</a>
+              <a href="https://twitter.com" className="hover:text-blue-300">Twitter</a>
+              <a href="https://linkedin.com" className="hover:text-blue-300">LinkedIn</a>
             </div>
           </div>
         </div>
