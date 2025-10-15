@@ -155,7 +155,7 @@ export default function Public() {
             onClick={() => router.push("/login")}
             className="bg-white text-blue-600 px-6 py-2 rounded-full font-semibold hover:bg-gray-200"
           >
-            Log In
+            Go to Dashboard
           </button>
           <button
             onClick={() => router.push("/register")}
